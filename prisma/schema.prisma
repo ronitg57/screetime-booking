@@ -1,45 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model Screen {
-  id        String    @id @default(cuid())
-  name      String
-  location  String
-  specs     String
-  imageUrl  String?   @default("https://placehold.co/300x200.png")
-  bookings  Booking[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  @@index([name])
+  id         String    @id @default(cuid())
+  name       String    @unique // Ensures screen names are unique for upsert operations
+  location   String
+  specs      String
+  imageUrl   String?
+  dataAiHint String?   // For image search hints in the seed
+  bookings   Booking[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model Booking {
   id        String   @id @default(cuid())
   screenId  String
-  screen    Screen   @relation(fields: [screenId], references: [id])
-  date      DateTime // Stores the date of booking, time part is ignored for date selection but useful for Prisma
+  screen    Screen   @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  date      DateTime // Stores the specific date of the booking
   timeSlot  String   // e.g., "4th period class", "5th period class", "7th period class"
   userName  String
   userEmail String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([date])
-  @@index([screenId, date, timeSlot])
+  @@index([screenId, date, timeSlot]) // Improves query performance for checking existing bookings
 }
 
 model Admin {
   id        String   @id @default(cuid())
   username  String   @unique
-  password  String // Store hashed password
+  password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
