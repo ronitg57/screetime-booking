@@ -5,11 +5,11 @@ import type { Screen } from "@/lib/types";
 import { ScreenUpsertSchema, type ScreenUpsertData } from "@/lib/schemas";
 import { createScreenAction, updateScreenAction } from "@/lib/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form"; // Changed import
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // Kept other form imports
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -59,8 +59,14 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
         if (result.issues) {
           result.issues.forEach(issue => {
             // Ensure the path is a valid key of ScreenUpsertData
-            const path = issue.path.join(".") as keyof ScreenUpsertData;
-            form.setError(path, { message: issue.message });
+            const path = issue.path.join(".") as keyof ScreenUpsertData; // Type assertion
+            if (path in form.getValues()) { // Check if path is a valid field name
+              form.setError(path as any, { message: issue.message }); // Use 'as any' if type checking is too strict here
+            } else {
+              console.warn(`Attempted to set error on non-existent path: ${path}`);
+              // Optionally, set a general form error
+              form.setError("root.serverError" as any, { message: `Server validation issue on ${path}: ${issue.message}` });
+            }
           });
         }
       }
@@ -68,7 +74,7 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
   };
 
   return (
-    <Form {...form}>
+    <FormProvider {...form}> {/* Changed Form to FormProvider */}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
@@ -151,6 +157,6 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
           </Button>
         </div>
       </form>
-    </Form>
+    </FormProvider>
   );
 }
