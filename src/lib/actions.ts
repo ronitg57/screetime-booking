@@ -4,7 +4,7 @@
 import prisma from "./prisma";
 import type { BookingFormValues } from "@/components/booking-form-schema";
 import type { Screen, Booking, DemandInfo, TimeSlot } from "./types";
-import { ScreenUpsertSchema, type ScreenUpsertData } from "./schemas"; // Import from new schemas file
+// ScreenUpsertSchema import removed
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import bcrypt from 'bcryptjs';
@@ -37,43 +37,9 @@ export async function getScreenById(screenId: string): Promise<Screen | null> {
   }
 }
 
-export async function createScreenAction(data: ScreenUpsertData) {
-  try {
-    const validatedData = ScreenUpsertSchema.parse(data);
-    const screen = await prisma.screen.create({
-      data: validatedData,
-    });
-    revalidatePath("/admin/screens");
-    revalidatePath("/");
-    return { success: true, screenId: screen.id };
-  } catch (error) {
-    console.error("Error creating screen:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: "Validation failed", issues: error.errors };
-    }
-    return { success: false, error: "Failed to create screen." };
-  }
-}
+// createScreenAction removed
 
-export async function updateScreenAction(screenId: string, data: ScreenUpsertData) {
-  try {
-    const validatedData = ScreenUpsertSchema.parse(data);
-    await prisma.screen.update({
-      where: { id: screenId },
-      data: validatedData,
-    });
-    revalidatePath("/admin/screens");
-    revalidatePath(`/admin/screens/${screenId}/edit`);
-    revalidatePath("/");
-    return { success: true };
-  } catch (error) {
-    console.error("Error updating screen:", error);
-     if (error instanceof z.ZodError) {
-      return { success: false, error: "Validation failed", issues: error.errors };
-    }
-    return { success: false, error: "Failed to update screen." };
-  }
-}
+// updateScreenAction removed
 
 export async function deleteScreenAction(screenId: string) {
   try {
