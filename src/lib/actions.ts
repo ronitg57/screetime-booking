@@ -149,13 +149,14 @@ export async function adminLogin(formData: FormData) {
       return { success: false, error: "Invalid username or password." };
     }
 
-    // Simplified session: Set a cookie. Use JWT in production.
     const sessionToken = process.env.ADMIN_SESSION_TOKEN_VALUE;
     if (!sessionToken) {
         console.error("ADMIN_SESSION_TOKEN_VALUE is not set in .env");
         return { success: false, error: "Server configuration error." };
     }
-    cookies().set("admin-auth-token", sessionToken, {
+    
+    const cookieStore = await cookies();
+    cookieStore.set("admin-auth-token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -170,7 +171,8 @@ export async function adminLogin(formData: FormData) {
 }
 
 export async function adminLogout() {
-  cookies().delete("admin-auth-token");
+  const cookieStore = await cookies();
+  cookieStore.delete("admin-auth-token");
   revalidatePath("/admin/login"); // to ensure redirect if middleware runs
   revalidatePath("/admin");
 }
@@ -203,7 +205,7 @@ export async function deleteBooking(bookingId: string) {
 
 // Helper to verify admin session, can be used in Server Components or other actions
 export async function verifyAdminSession() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('admin-auth-token');
   
   if (!token || token.value !== process.env.ADMIN_SESSION_TOKEN_VALUE) {

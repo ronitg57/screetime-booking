@@ -12,8 +12,8 @@ interface ConfirmationPageProps {
   };
 }
 
-export default async function ConfirmationPage({ params }: ConfirmationPageProps) {
-  const booking = await getBookingById(params.bookingId);
+export default async function ConfirmationPage({ params: { bookingId } }: ConfirmationPageProps) {
+  const booking = await getBookingById(bookingId);
 
   if (!booking) {
     return (
