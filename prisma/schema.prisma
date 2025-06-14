@@ -1,39 +1,37 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model Screen {
-  id         String    @id @default(cuid())
-  name       String    @unique // Ensures screen names are unique for upsert operations
-  location   String
-  specs      String
-  imageUrl   String?
-  dataAiHint String?   // For image search hints in the seed
-  bookings   Booking[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  name      String    @unique // Ensures name can be used for upsert's where clause
+  location  String
+  specs     String
+  imageUrl  String?
+  dataAiHint String? // Added to match seed script
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Booking {
-  id        String   @id @default(cuid())
-  screenId  String
-  screen    Screen   @relation(fields: [screenId], references: [id], onDelete: Cascade)
-  date      DateTime // Stores the specific date of the booking
-  timeSlot  String   // e.g., "4th period class", "5th period class", "7th period class"
-  userName  String
-  userEmail String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  screen     Screen   @relation(fields: [screenId], references: [id])
+  screenId   String
+  date       DateTime
+  timeSlot   String // "4th period class", "5th period class", "7th period class"
+  userName   String
+  userEmail  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@index([screenId, date, timeSlot]) // Improves query performance for checking existing bookings
+  @@index([screenId, date, timeSlot]) // Optional: for faster lookups if you check for existing bookings
 }
 
 model Admin {

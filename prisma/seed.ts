@@ -41,8 +41,13 @@ async function main() {
 
   for (const screen of screensData) {
     await prisma.screen.upsert({
-      where: { name: screen.name },
-      update: {},
+      where: { name: screen.name }, // This requires 'name' to be a unique field
+      update: { // Ensure all fields are updated if the record exists
+        location: screen.location,
+        specs: screen.specs,
+        imageUrl: screen.imageUrl,
+        dataAiHint: screen.dataAiHint,
+      },
       create: screen,
     });
     console.log(`Created/Updated screen: ${screen.name}`);
