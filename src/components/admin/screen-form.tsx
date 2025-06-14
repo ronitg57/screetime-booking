@@ -2,14 +2,13 @@
 "use client";
 
 import type { Screen } from "@/lib/types";
-import { ScreenUpsertSchema, type ScreenUpsertData } from "@/lib/schemas"; // Updated import path
+import { ScreenUpsertSchema, type ScreenUpsertData } from "@/lib/schemas";
 import { createScreenAction, updateScreenAction } from "@/lib/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -59,7 +58,9 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
         });
         if (result.issues) {
           result.issues.forEach(issue => {
-            form.setError(issue.path.join(".") as keyof ScreenUpsertData, { message: issue.message });
+            // Ensure the path is a valid key of ScreenUpsertData
+            const path = issue.path.join(".") as keyof ScreenUpsertData;
+            form.setError(path, { message: issue.message });
           });
         }
       }
