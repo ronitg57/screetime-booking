@@ -1,3 +1,4 @@
+
 # ScreenTime Booking - Next.js Application
 
 This is a Next.js application for booking video screens, featuring an admin panel and AI-powered recommendations using Genkit.
@@ -8,7 +9,7 @@ Before you begin, ensure you have the following installed:
 
 *   **Node.js**: Version 18.x or 20.x recommended.
 *   **npm** (comes with Node.js) or **yarn**.
-*   **PostgreSQL**: A running PostgreSQL database server.
+*   **MySQL**: A running MySQL database server.
 *   **Git**
 
 ## Getting Started Locally
@@ -38,14 +39,14 @@ npm install
 
 The application uses environment variables for configuration, especially for database connection, admin credentials, and API keys.
 
-*   Copy the example environment file:
+*   Copy the example environment file (if it doesn't exist or you want to reset):
     ```bash
     cp .env.example .env
     ```
 *   Open the newly created `.env` file and update the variables:
-    *   `DATABASE_URL`: Set this to your PostgreSQL connection string.
-        *   Example: `postgresql://user:password@localhost:5432/mydatabase?schema=public`
-        *   Ensure the user has privileges to create and modify tables in the specified database and schema.
+    *   `DATABASE_URL`: Set this to your MySQL connection string.
+        *   Example: `mysql://user:password@localhost:3306/mydatabase`
+        *   Ensure the `user` has privileges to create and modify tables in the specified `mydatabase`.
     *   `INITIAL_ADMIN_USERNAME`: The username for the initial admin account (default is `admin`).
     *   `INITIAL_ADMIN_PASSWORD_HASH`: (Optional) If you want to set a custom password for the initial admin user, generate a bcrypt hash for your desired password and put it here. If left empty or commented out, the seed script will use a default hash for the password "adminpassword".
         *   **Security Note**: For any non-local/testing deployment, always use a strong, unique password and its hash.
@@ -54,9 +55,9 @@ The application uses environment variables for configuration, especially for dat
 
 ### 4. Set Up the Database
 
-This project uses Prisma as its ORM.
+This project uses Prisma as its ORM. Your `prisma/schema.prisma` file should be configured with `provider = "mysql"`.
 
-*   **Apply database migrations**: This will create the necessary tables in your PostgreSQL database based on the schema defined in `prisma/schema.prisma`.
+*   **Apply database migrations**: This will create the necessary tables in your MySQL database based on the schema defined in `prisma/schema.prisma`.
     ```bash
     npm run prisma:migrate
     ```
@@ -129,7 +130,7 @@ The application consists of two main parts: the Next.js frontend/backend and the
 *   TypeScript
 *   Tailwind CSS
 *   ShadCN UI
-*   Prisma (ORM for PostgreSQL)
+*   Prisma (ORM for MySQL)
 *   Genkit (for AI features, with Google AI)
 *   bcrypt.js (for password hashing)
 
