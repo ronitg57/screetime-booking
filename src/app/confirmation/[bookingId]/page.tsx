@@ -3,7 +3,7 @@ import { getBookingById } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CheckCircle, CalendarDays, Clock, Tv, User, Mail } from 'lucide-react';
+import { CheckCircle, CalendarDays, Clock, Tv, User, Phone } from 'lucide-react'; // Changed Mail to Phone
 import { format } from 'date-fns';
 
 interface ConfirmationPageProps {
@@ -12,7 +12,9 @@ interface ConfirmationPageProps {
   };
 }
 
-export default async function ConfirmationPage({ params: { bookingId } }: ConfirmationPageProps) {
+export default async function ConfirmationPage({ params }: ConfirmationPageProps) {
+  // Destructure bookingId directly for Next.js 15 compatibility
+  const { bookingId } = params;
   const booking = await getBookingById(bookingId);
 
   if (!booking) {
@@ -68,8 +70,8 @@ export default async function ConfirmationPage({ params: { bookingId } }: Confir
               <span><strong>Name:</strong> {booking.userName}</span>
             </div>
             <div className="flex items-center">
-              <Mail className="w-5 h-5 mr-3 text-primary" />
-              <span><strong>Email:</strong> {booking.userEmail}</span>
+              <Phone className="w-5 h-5 mr-3 text-primary" /> 
+              <span><strong>Contact Number:</strong> {booking.userContactNumber}</span>
             </div>
           </div>
           <div className="mt-8 text-center">
@@ -79,9 +81,9 @@ export default async function ConfirmationPage({ params: { bookingId } }: Confir
           </div>
         </CardContent>
       </Card>
-       <p className="mt-8 text-sm text-muted-foreground">A confirmation email has been notionally sent to {booking.userEmail}.</p>
+       <p className="mt-8 text-sm text-muted-foreground">A confirmation (e.g., SMS) has been notionally sent to {booking.userContactNumber}.</p>
     </div>
   );
 }
 
-export const dynamic = 'force-dynamic'; // Ensure fresh data on each request
+export const dynamic = 'force-dynamic';

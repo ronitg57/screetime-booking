@@ -3,7 +3,7 @@ import { verifyAdminSession, adminLogout } from "@/lib/actions";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { LayoutDashboard, LogOut, Tv2 } from "lucide-react"; // Added Tv2 icon
 import {
   SidebarProvider,
   Sidebar,
@@ -15,15 +15,14 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarTrigger,
-} from "@/components/ui/sidebar"; // Assuming sidebar is available
+} from "@/components/ui/sidebar";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // This check might be redundant due to middleware, but good for direct component use or future changes.
-  // For server components, middleware is generally preferred for route protection.
+  // Middleware handles auth, but this can be a server-side check too.
   // const isAdmin = await verifyAdminSession();
   // if (!isAdmin) {
   //   redirect("/admin/login");
@@ -42,10 +41,18 @@ export default async function AdminLayout({
           <SidebarContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={true} tooltip="Dashboard">
+                <SidebarMenuButton asChild isActive={true} tooltip="Bookings"> 
                   <Link href="/admin">
                     <LayoutDashboard />
                     <span className="group-data-[collapsible=icon]:hidden">Bookings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Manage Screens">
+                  <Link href="/admin/screens">
+                    <Tv2 />
+                    <span className="group-data-[collapsible=icon]:hidden">Manage Screens</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

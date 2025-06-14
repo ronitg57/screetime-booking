@@ -6,11 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCap
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Card } from "@/components/ui/card"; // Added import
+import { Card } from "@/components/ui/card";
 import { deleteBooking } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Trash2, CalendarDays, Clock, Tv, User, Mail, Filter } from "lucide-react";
+import { Trash2, CalendarDays, Clock, Tv, User, Phone, Filter } from "lucide-react"; // Changed Mail to Phone
 import { useState, useTransition, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -44,7 +44,7 @@ export function BookingsTable({ bookings: initialBookings, allScreens }: Booking
     return bookings.filter(booking => {
       const searchText = filterText.toLowerCase();
       const matchesText = booking.userName.toLowerCase().includes(searchText) ||
-                          booking.userEmail.toLowerCase().includes(searchText) ||
+                          booking.userContactNumber.toLowerCase().includes(searchText) || // Changed from userEmail
                           booking.screen.name.toLowerCase().includes(searchText) ||
                           booking.timeSlot.toLowerCase().includes(searchText);
       
@@ -75,7 +75,7 @@ export function BookingsTable({ bookings: initialBookings, allScreens }: Booking
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <Input
-          placeholder="Filter by name, email, screen..."
+          placeholder="Filter by name, contact, screen..." // Updated placeholder
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           className="max-w-sm"
@@ -126,7 +126,7 @@ export function BookingsTable({ bookings: initialBookings, allScreens }: Booking
                 <TableCell>
                   <div className="font-medium">{booking.userName}</div>
                   <div className="text-sm text-muted-foreground flex items-center">
-                    <Mail className="w-3 h-3 mr-1" />{booking.userEmail}
+                    <Phone className="w-3 h-3 mr-1" />{booking.userContactNumber} {/* Changed from userEmail */}
                   </div>
                 </TableCell>
                 <TableCell>

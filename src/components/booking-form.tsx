@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { bookingFormSchema, type BookingFormValues } from './booking-form-schema';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScreenCard } from './screen-card';
 import { RecommendationDialog } from './recommendation-dialog';
@@ -19,11 +18,11 @@ import type { Screen, TimeSlot, DemandInfo } from '@/lib/types';
 import { timeSlots } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { CalendarIcon, ArrowLeft, ArrowRight, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, ArrowLeft, ArrowRight, Loader2, CheckCircle, Phone } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { recommendTimeSlots, type RecommendTimeSlotsOutput } from '@/ai/flows/recommend-time-slots';
-import { getScreens, createBooking, checkDemandForSlot } from '@/lib/actions'; // Assuming actions are in one file
+import { getScreens, createBooking, checkDemandForSlot, getBookedSlotsForScreenDate } from '@/lib/actions';
 
 const steps = [
   { id: 1, name: 'Select Screen' },
@@ -40,6 +39,8 @@ export function BookingForm() {
   const [isCheckingDemand, setIsCheckingDemand] = useState(false);
   const [aiRecommendations, setAiRecommendations] = useState<RecommendTimeSlotsOutput | null>(null);
   const [showRecommendationDialog, setShowRecommendationDialog] = useState(false);
+  const [bookedSlots, setBookedSlots] = useState<TimeSlot[]>([]);
+  const [isLoadingBookedSlots, setIsLoadingBookedSlots] = useState(false);
   
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -52,7 +53,7 @@ export function BookingForm() {
       date: undefined,
       timeSlot: '',
       userName: '',
-      userEmail: '',
+      userContactNumber: '',
     },
   });
   const { control, handleSubmit, watch, setValue, trigger, formState: { errors } } = form;
@@ -62,7 +63,7 @@ export function BookingForm() {
   const watchedTimeSlot = watch('timeSlot');
 
   useEffect(() => {
-    async function fetchScreens() {
+    async function fetchScreensData() {
       setIsLoadingScreens(true);
       try {
         const fetchedScreens = await getScreens();
@@ -73,17 +74,45 @@ export function BookingForm() {
         setIsLoadingScreens(false);
       }
     }
-    fetchScreens();
+    fetchScreensData();
   }, [toast]);
+
+  const fetchBookedSlots = useCallback(async () => {
+    if (watchedScreenId && watchedDate) {
+      setIsLoadingBookedSlots(true);
+      try {
+        const result = await getBookedSlotsForScreenDate(watchedScreenId, watchedDate);
+        setBookedSlots(result);
+      } catch (error) {
+        toast({ title: "Error", description: "Could not fetch booked slots.", variant: "destructive" });
+        setBookedSlots([]);
+      } finally {
+        setIsLoadingBookedSlots(false);
+      }
+    } else {
+      setBookedSlots([]);
+    }
+  }, [watchedScreenId, watchedDate, toast]);
+
+  useEffect(() => {
+    fetchBookedSlots();
+  }, [fetchBookedSlots]);
+
 
   const nextStep = async () => {
     let isValid = false;
     if (currentStep === 1) isValid = await trigger("screenId");
-    if (currentStep === 2) isValid = await trigger(["date", "timeSlot"]);
-    if (currentStep === 3) isValid = await trigger(["userName", "userEmail"]);
+    if (currentStep === 2) {
+       isValid = await trigger(["date", "timeSlot"]);
+       if (isValid && watchedTimeSlot && bookedSlots.includes(watchedTimeSlot as TimeSlot)) {
+         toast({ title: "Slot Unavailable", description: "This time slot is already booked. Please select another.", variant: "destructive" });
+         return; // Prevent advancing if selected slot is booked
+       }
+    }
+    if (currentStep === 3) isValid = await trigger(["userName", "userContactNumber"]);
     
-    if (isValid || currentStep === 4) { // Step 4 is review, no validation needed to proceed TO it
-      if (currentStep === 3) { // Moving from User Details to Review
+    if (isValid || currentStep === 4) {
+      if (currentStep === 3) {
         await handleDemandCheckAndRecommendations();
       } else if (currentStep < steps.length) {
         setCurrentStep(prev => prev + 1);
@@ -101,10 +130,10 @@ export function BookingForm() {
       const demandInfo: DemandInfo = await checkDemandForSlot({
         screenId: watchedScreenId,
         date: watchedDate,
-        timeSlot: watchedTimeSlot,
+        timeSlot: watchedTimeSlot as TimeSlot, // Schema ensures it's a TimeSlot if not empty
       });
 
-      if (demandInfo.level === 'high' || demandInfo.level === 'medium') { // Trigger AI for high or medium
+      if (demandInfo.level === 'high' || demandInfo.level === 'medium') {
         const nearbyScreenIds = screens.filter(s => s.id !== watchedScreenId).map(s => s.id);
         const recommendations = await recommendTimeSlots({
           selectedScreen: watchedScreenId,
@@ -115,13 +144,12 @@ export function BookingForm() {
         });
         setAiRecommendations(recommendations);
         setShowRecommendationDialog(true); 
-        // Don't advance step automatically, wait for dialog interaction
       } else {
-         setCurrentStep(prev => prev + 1); // No high demand, proceed to review
+         setCurrentStep(prev => prev + 1);
       }
     } catch (error) {
       toast({ title: "Recommendation Error", description: "Could not get recommendations. Proceeding with booking.", variant: "destructive" });
-      setCurrentStep(prev => prev + 1); // Error, proceed to review
+      setCurrentStep(prev => prev + 1);
     } finally {
       setIsCheckingDemand(false);
     }
@@ -132,21 +160,35 @@ export function BookingForm() {
       setValue('timeSlot', value as TimeSlot, { shouldValidate: true });
     } else if (type === 'screen') {
       setValue('screenId', value, { shouldValidate: true });
+      // When screen changes, re-fetch booked slots
+      setBookedSlots([]); // Clear old slots immediately
+      // fetchBookedSlots will be called by its own useEffect dependency on watchedScreenId
     }
     setShowRecommendationDialog(false);
-    setCurrentStep(4); // Go to review step
+    setCurrentStep(4); 
   };
 
   const handleProceedWithOriginal = () => {
     setShowRecommendationDialog(false);
-    setCurrentStep(4); // Go to review step
+    setCurrentStep(4); 
   };
-
 
   const onSubmit = async (data: BookingFormValues) => {
     setIsSubmitting(true);
     startTransition(async () => {
       try {
+        // Double check if the selected slot became booked in the meantime (race condition)
+        if (data.screenId && data.date && data.timeSlot) {
+            const currentBookedSlots = await getBookedSlotsForScreenDate(data.screenId, data.date);
+            if (currentBookedSlots.includes(data.timeSlot as TimeSlot)) {
+                toast({ title: "Slot Just Booked", description: "This time slot was booked while you were completing the form. Please select another.", variant: "destructive" });
+                setIsSubmitting(false);
+                setCurrentStep(2); // Go back to time selection
+                fetchBookedSlots(); // Refresh booked slots
+                return;
+            }
+        }
+
         const result = await createBooking(data);
         if (result.success && result.bookingId) {
           toast({ title: "Booking Successful!", description: "Your screen time has been confirmed.", className: "bg-green-500 text-white" });
@@ -172,7 +214,6 @@ export function BookingForm() {
           <CardDescription className="text-center text-lg text-foreground/80">
             Book a video screen in just a few steps.
           </CardDescription>
-          {/* Progress Bar */}
           <div className="w-full bg-muted rounded-full h-2.5 mt-4">
             <div 
               className="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out" 
@@ -236,9 +277,12 @@ export function BookingForm() {
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={(date) => field.onChange(date)}
+                            onSelect={(date) => {
+                              field.onChange(date);
+                              setValue('timeSlot', '', { shouldValidate: false }); // Reset time slot when date changes
+                            }}
                             initialFocus
-                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) || date.getDay() === 0 /* Sunday */}
+                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) || date.getDay() === 0}
                           />
                         </PopoverContent>
                       </Popover>
@@ -255,25 +299,41 @@ export function BookingForm() {
                     render={({ field }) => (
                       <RadioGroup
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value} // Use value for controlled component
                         className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2"
                       >
-                        {timeSlots.map(slot => (
-                          <Label
-                            key={slot}
-                            htmlFor={slot}
-                            className={cn(
-                              "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer",
-                              field.value === slot && "border-primary ring-2 ring-primary"
-                            )}
-                          >
-                            <RadioGroupItem value={slot} id={slot} className="sr-only" />
-                            {slot}
-                          </Label>
-                        ))}
+                        {timeSlots.map(slot => {
+                          const isBooked = bookedSlots.includes(slot);
+                          return (
+                            <Label
+                              key={slot}
+                              htmlFor={slot}
+                              className={cn(
+                                "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer transition-all",
+                                field.value === slot && "border-primary ring-2 ring-primary",
+                                isBooked && "bg-muted/50 cursor-not-allowed opacity-60 hover:bg-muted/50 line-through",
+                                isLoadingBookedSlots && "opacity-50 cursor-default"
+                              )}
+                            >
+                              <RadioGroupItem 
+                                value={slot} 
+                                id={slot} 
+                                className="sr-only" 
+                                disabled={isBooked || isLoadingBookedSlots}
+                              />
+                              {slot}
+                              {isBooked && <span className="text-xs text-destructive">(Booked)</span>}
+                            </Label>
+                          );
+                        })}
                       </RadioGroup>
                     )}
                   />
+                  {isLoadingBookedSlots && (
+                    <div className="flex items-center text-sm text-muted-foreground mt-2">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking slot availability...
+                    </div>
+                  )}
                   {errors.timeSlot && <p className="text-destructive mt-1 text-sm">{errors.timeSlot.message}</p>}
                 </div>
               </section>
@@ -292,13 +352,13 @@ export function BookingForm() {
                   {errors.userName && <p className="text-destructive mt-1 text-sm">{errors.userName.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="userEmail" className="text-md font-medium">Email Address</Label>
+                  <Label htmlFor="userContactNumber" className="text-md font-medium">Contact Number</Label>
                   <Controller
-                    name="userEmail"
+                    name="userContactNumber"
                     control={control}
-                    render={({ field }) => <Input id="userEmail" type="email" {...field} className="mt-1" placeholder="e.g. jane.doe@example.com" />}
+                    render={({ field }) => <Input id="userContactNumber" type="tel" {...field} className="mt-1" placeholder="e.g. +1 555 123 4567" />}
                   />
-                  {errors.userEmail && <p className="text-destructive mt-1 text-sm">{errors.userEmail.message}</p>}
+                  {errors.userContactNumber && <p className="text-destructive mt-1 text-sm">{errors.userContactNumber.message}</p>}
                 </div>
               </section>
             )}
@@ -312,7 +372,7 @@ export function BookingForm() {
                     <p><strong>Date:</strong> {watchedDate ? format(watchedDate, "PPP") : 'N/A'}</p>
                     <p><strong>Time Slot:</strong> {watchedTimeSlot || 'N/A'}</p>
                     <p><strong>Name:</strong> {watch('userName') || 'N/A'}</p>
-                    <p><strong>Email:</strong> {watch('userEmail') || 'N/A'}</p>
+                    <p><strong>Contact Number:</strong> {watch('userContactNumber') || 'N/A'}</p>
                   </CardContent>
                 </Card>
               </section>
@@ -320,25 +380,25 @@ export function BookingForm() {
           </CardContent>
 
           <CardFooter className="p-6 flex justify-between border-t">
-            <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1 || isSubmitting || isPending || isCheckingDemand}>
+            <Button type="button" variant="outline" onClick={prevStep} disabled={currentStep === 1 || isSubmitting || isPending || isCheckingDemand || isLoadingBookedSlots}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
-            {currentStep < steps.length -1 && ( // -1 because step 3 has a special next handling
-                 <Button type="button" onClick={nextStep} disabled={isSubmitting || isPending || (currentStep === 3 && isCheckingDemand) }>
+            {currentStep < steps.length -1 && ( 
+                 <Button type="button" onClick={nextStep} disabled={isSubmitting || isPending || (currentStep === 3 && isCheckingDemand) || isLoadingBookedSlots || (currentStep === 2 && !watchedTimeSlot) }>
                 {currentStep === 3 && isCheckingDemand ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {currentStep === 3 && isCheckingDemand ? "Checking..." : "Next"}
                 {currentStep < 3 && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             )}
-             {currentStep === steps.length-1 && ( // On User Details step, "Next" leads to Review or AI Dialog
-              <Button type="button" onClick={nextStep} disabled={isSubmitting || isPending || isCheckingDemand}>
+             {currentStep === steps.length-1 && (
+              <Button type="button" onClick={nextStep} disabled={isSubmitting || isPending || isCheckingDemand || isLoadingBookedSlots}>
                 {isCheckingDemand ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isCheckingDemand ? "Checking Availability..." : "Review Booking"}
                 {!isCheckingDemand && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             )}
             {currentStep === steps.length && (
-              <Button type="submit" disabled={isSubmitting || isPending}>
+              <Button type="submit" disabled={isSubmitting || isPending || isLoadingBookedSlots}>
                 {isSubmitting || isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                 Confirm Booking
               </Button>
@@ -364,4 +424,3 @@ export function BookingForm() {
     </div>
   );
 }
-

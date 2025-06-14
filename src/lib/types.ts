@@ -17,7 +17,7 @@ export type BookingFormData = {
   date: Date | undefined;
   timeSlot: TimeSlot | '';
   userName: string;
-  userEmail: string;
+  userContactNumber: string; // Changed from userEmail
 };
 
 export type DemandInfo = {

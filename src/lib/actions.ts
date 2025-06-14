@@ -4,13 +4,14 @@
 import prisma from "./prisma";
 import type { BookingFormValues } from "@/components/booking-form-schema";
 import type { Screen, Booking, DemandInfo, TimeSlot } from "./types";
+import { ScreenUpsertSchema, type ScreenUpsertData } from "./schemas"; // Import from new schemas file
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import bcrypt from 'bcryptjs';
 import { z } from "zod";
 import { format } from "date-fns";
 
-// Screen and Booking Actions
+// Screen Actions
 export async function getScreens(): Promise<Screen[]> {
   try {
     const screens = await prisma.screen.findMany({
@@ -19,23 +20,93 @@ export async function getScreens(): Promise<Screen[]> {
     return screens;
   } catch (error) {
     console.error("Error fetching screens:", error);
-    return []; // Gracefully return empty array on error
+    return [];
   }
 }
 
+export async function getScreenById(screenId: string): Promise<Screen | null> {
+  if (!screenId) return null;
+  try {
+    const screen = await prisma.screen.findUnique({
+      where: { id: screenId },
+    });
+    return screen;
+  } catch (error) {
+    console.error(`Error fetching screen by ID (${screenId}):`, error);
+    return null;
+  }
+}
+
+export async function createScreenAction(data: ScreenUpsertData) {
+  try {
+    const validatedData = ScreenUpsertSchema.parse(data);
+    const screen = await prisma.screen.create({
+      data: validatedData,
+    });
+    revalidatePath("/admin/screens");
+    revalidatePath("/");
+    return { success: true, screenId: screen.id };
+  } catch (error) {
+    console.error("Error creating screen:", error);
+    if (error instanceof z.ZodError) {
+      return { success: false, error: "Validation failed", issues: error.errors };
+    }
+    return { success: false, error: "Failed to create screen." };
+  }
+}
+
+export async function updateScreenAction(screenId: string, data: ScreenUpsertData) {
+  try {
+    const validatedData = ScreenUpsertSchema.parse(data);
+    await prisma.screen.update({
+      where: { id: screenId },
+      data: validatedData,
+    });
+    revalidatePath("/admin/screens");
+    revalidatePath(`/admin/screens/${screenId}/edit`);
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating screen:", error);
+     if (error instanceof z.ZodError) {
+      return { success: false, error: "Validation failed", issues: error.errors };
+    }
+    return { success: false, error: "Failed to update screen." };
+  }
+}
+
+export async function deleteScreenAction(screenId: string) {
+  try {
+    // Check for existing bookings. Prevent deletion if bookings exist.
+    const bookingCount = await prisma.booking.count({ where: { screenId } });
+    if (bookingCount > 0) {
+      return { success: false, error: "Cannot delete screen with existing bookings. Please delete bookings first." };
+    }
+    await prisma.screen.delete({
+      where: { id: screenId },
+    });
+    revalidatePath("/admin/screens");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting screen:", error);
+    return { success: false, error: "Failed to delete screen." };
+  }
+}
+
+
+// Booking Actions
 export async function createBooking(data: BookingFormValues) {
   try {
-    // Validate input again on server-side (optional if using form validation strictly)
-    const { screenId, date, timeSlot, userName, userEmail } = data;
-    if (!screenId || !date || !timeSlot || !userName || !userEmail) {
+    const { screenId, date, timeSlot, userName, userContactNumber } = data;
+    if (!screenId || !date || !timeSlot || !userName || !userContactNumber) {
       return { success: false, error: "Missing required fields." };
     }
     
-    // Optional: Check if slot is already booked (can be more complex with counts)
     const existingBooking = await prisma.booking.findFirst({
       where: {
         screenId,
-        date: new Date(date.setHours(0,0,0,0)), // Ensure only date part is used for comparison
+        date: new Date(date.setHours(0,0,0,0)),
         timeSlot,
       },
     });
@@ -47,14 +118,15 @@ export async function createBooking(data: BookingFormValues) {
     const booking = await prisma.booking.create({
       data: {
         screenId,
-        date: new Date(date.setHours(12,0,0,0)), // Store date with a neutral time e.g. midday UTC
+        date: new Date(date.setHours(12,0,0,0)), // Store date at noon UTC to avoid timezone issues with date part
         timeSlot,
         userName,
-        userEmail,
+        userContactNumber,
       },
     });
-    revalidatePath("/"); // Revalidate homepage if it lists bookings or availability
+    revalidatePath("/");
     revalidatePath("/admin");
+    revalidatePath(`/booking-form`); 
     return { success: true, bookingId: booking.id };
   } catch (error) {
     console.error("Error creating booking:", error);
@@ -63,6 +135,7 @@ export async function createBooking(data: BookingFormValues) {
 }
 
 export async function getBookingById(bookingId: string): Promise<Booking & { screen: Screen } | null> {
+  if (!bookingId) return null;
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
@@ -70,8 +143,35 @@ export async function getBookingById(bookingId: string): Promise<Booking & { scr
     });
     return booking;
   } catch (error) {
-    console.error("Error fetching booking by ID:", error);
+    console.error(`Error fetching booking by ID (${bookingId}):`, error);
     return null;
+  }
+}
+
+export async function getBookedSlotsForScreenDate(screenId: string, date: Date): Promise<TimeSlot[]> {
+  if (!screenId || !date) return [];
+  try {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        screenId: screenId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      select: {
+        timeSlot: true,
+      },
+    });
+    return bookings.map(b => b.timeSlot as TimeSlot);
+  } catch (error) {
+    console.error("Error fetching booked slots:", error);
+    return [];
   }
 }
 
@@ -83,7 +183,6 @@ export async function checkDemandForSlot(params: { screenId: string; date: Date;
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Count bookings for the specific slot
     const specificSlotBookings = await prisma.booking.count({
       where: {
         screenId,
@@ -99,7 +198,6 @@ export async function checkDemandForSlot(params: { screenId: string; date: Date;
       return { level: 'high', message: 'This specific slot is already booked or has high interest.' };
     }
     
-    // Count total bookings for the screen on that day
     const dailyBookingsCount = await prisma.booking.count({
       where: {
         screenId,
@@ -110,20 +208,20 @@ export async function checkDemandForSlot(params: { screenId: string; date: Date;
       },
     });
 
-    if (dailyBookingsCount >= 2) { // Example threshold: 2 bookings on the same screen for the day
+    if (dailyBookingsCount >= 2) { // Example threshold: if 2 or more slots on the same screen are booked for the day
       return { level: 'medium', message: 'This screen has multiple bookings today.' };
     }
 
     return { level: 'low' };
   } catch (error) {
     console.error("Error checking demand:", error);
-    // Default to low demand on error to not block booking flow
+    // Default to low demand on error to avoid blocking users unnecessarily
     return { level: 'low', message: 'Could not determine demand.' };
   }
 }
 
 
-// Admin Actions
+// Admin Auth Actions
 const LoginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -155,12 +253,12 @@ export async function adminLogin(formData: FormData) {
         return { success: false, error: "Server configuration error." };
     }
     
-    const cookieStore = await cookies();
+    const cookieStore = await cookies(); 
     cookieStore.set("admin-auth-token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 60 * 60 * 24, // 1 day
+      maxAge: 60 * 60 * 24, 
     });
 
     return { success: true };
@@ -173,7 +271,7 @@ export async function adminLogin(formData: FormData) {
 export async function adminLogout() {
   const cookieStore = await cookies();
   cookieStore.delete("admin-auth-token");
-  revalidatePath("/admin/login"); // to ensure redirect if middleware runs
+  revalidatePath("/admin/login"); 
   revalidatePath("/admin");
 }
 
@@ -196,6 +294,7 @@ export async function deleteBooking(bookingId: string) {
       where: { id: bookingId },
     });
     revalidatePath("/admin");
+    revalidatePath("/"); // Also revalidate public pages if availability changes
     return { success: true };
   } catch (error) {
     console.error("Error deleting booking:", error);
@@ -203,7 +302,6 @@ export async function deleteBooking(bookingId: string) {
   }
 }
 
-// Helper to verify admin session, can be used in Server Components or other actions
 export async function verifyAdminSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get('admin-auth-token');

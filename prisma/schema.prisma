@@ -9,29 +9,29 @@ generator client {
 }
 
 model Screen {
-  id        String    @id @default(cuid())
-  name      String    @unique // Ensures name can be used for upsert's where clause
-  location  String
-  specs     String
-  imageUrl  String?
-  dataAiHint String? // Added to match seed script
-  bookings  Booking[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String    @unique
+  location    String
+  specs       String
+  imageUrl    String?
+  dataAiHint  String?
+  bookings    Booking[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Booking {
-  id         String   @id @default(cuid())
-  screen     Screen   @relation(fields: [screenId], references: [id])
-  screenId   String
-  date       DateTime
-  timeSlot   String // "4th period class", "5th period class", "7th period class"
-  userName   String
-  userEmail  String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String    @id @default(cuid())
+  screenId          String
+  screen            Screen    @relation(fields: [screenId], references: [id])
+  date              DateTime  @db.Date // Store only the date part
+  timeSlot          String
+  userName          String
+  userContactNumber String // Changed from userEmail
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  @@index([screenId, date, timeSlot]) // Optional: for faster lookups if you check for existing bookings
+  @@index([screenId, date, timeSlot]) // Index for faster lookups of booked slots
 }
 
 model Admin {
