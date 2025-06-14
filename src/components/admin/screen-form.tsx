@@ -5,11 +5,11 @@ import type { Screen } from "@/lib/types";
 import { ScreenUpsertSchema, type ScreenUpsertData } from "@/lib/schemas";
 import { createScreenAction, updateScreenAction } from "@/lib/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // Changed back to Form
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -72,7 +72,7 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
   };
 
   return (
-    <FormProvider {...form}>
+    <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
@@ -155,6 +155,6 @@ export function ScreenForm({ initialData }: ScreenFormProps) {
           </Button>
         </div>
       </form>
-    </FormProvider>
+    </Form>
   );
 }
