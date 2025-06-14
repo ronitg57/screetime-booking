@@ -1,0 +1,45 @@
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Screen {
+  id        String    @id @default(cuid())
+  name      String
+  location  String
+  specs     String
+  imageUrl  String?   @default("https://placehold.co/300x200.png")
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([name])
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  screenId  String
+  screen    Screen   @relation(fields: [screenId], references: [id])
+  date      DateTime // Stores the date of booking, time part is ignored for date selection but useful for Prisma
+  timeSlot  String   // e.g., "4th period class", "5th period class", "7th period class"
+  userName  String
+  userEmail String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([screenId, date, timeSlot])
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String // Store hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
